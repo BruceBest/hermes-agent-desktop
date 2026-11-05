@@ -4,6 +4,12 @@ A community [Hermes Agent](https://github.com/NousResearch/hermes-agent) compute
 
 **Not an official Vercel or Nous integration. Not full desktop takeover.** This first release supports the signed-in user's **GNOME desktop on Linux x86_64**, using headless accessibility actions only. KDE, macOS, Windows, sandbox/Bot Desktops, pixel-only apps and screenshots are not supported by this adapter, even where upstream supports more.
 
+## Why I built this
+
+I built this because I couldn't find a good, reliable computer-use setup for my GNOME desktop, especially on Wayland. The options I tried left gaps in everyday desktop automation, and I wanted something usable from Hermes without switching desktop environments.
+
+This plugin packages the approach that worked for me: Vercel Labs agent-desktop for accessibility-based observation and semantic actions, integrated with Hermes's native computer-use interface. It doesn't solve every GNOME automation problem or offer full desktop takeover—the goal is a practical starting point with clear limits, not another tool that claims more than it can do.
+
 ## Capabilities
 
 | Operation | This adapter |
