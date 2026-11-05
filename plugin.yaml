@@ -1,0 +1,14 @@
+name: agent-desktop-gnome
+version: "0.1.0"
+description: GNOME-first, AX-only semantic computer-use backend powered by Vercel Labs agent-desktop.
+author: BruceBest
+license: MIT
+homepage: https://github.com/BruceBest/hermes-agent-desktop
+requires_hermes: ">=0.22.5"
+platforms: [linux]
+kind: exclusive
+capabilities:
+  provides_tools: []
+  provides_hooks: []
+  provides_middleware: []
+  requires_env: []

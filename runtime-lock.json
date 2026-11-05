@@ -1,0 +1,12 @@
+{
+  "version": "1.2.0",
+  "target": "x86_64-unknown-linux-gnu",
+  "url": "https://github.com/vercel-labs/agent-desktop/releases/download/v1.2.0/agent-desktop-v1.2.0-x86_64-unknown-linux-gnu.tar.gz",
+  "sha256": "591ae7f4a38479dc045df97e27447c0c8b530441730ab6b990e27c813162af44",
+  "size": 3458001,
+  "source_commit": "2b0a7334fc111730454b726e6800aa41cdafc093",
+  "files": {
+    "agent-desktop": "da52a1eb2152cdc21b756ab20e6208d242da8062c73cd20bc8a8ae2a0384392c",
+    "agent-desktop-linux-clipboard-owner": "3e96f92b805c0d1f9de309935d62f4189b8e11e1385ad022bb878487bb3942ec"
+  }
+}
