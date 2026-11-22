@@ -5,7 +5,7 @@ from pathlib import Path
 import platform
 import subprocess
 
-VERSION = "1.2.0"
+VERSION = "1.3.1"
 SESSION_KEYS = frozenset({
     "DBUS_SESSION_BUS_ADDRESS", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
     "XDG_RUNTIME_DIR", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE",

@@ -2,7 +2,7 @@
 
 A community [Hermes Agent](https://github.com/NousResearch/hermes-agent) computer-use provider powered by [Vercel Labs agent-desktop](https://github.com/vercel-labs/agent-desktop). Select it instead of CUA behind Hermes's existing `computer_use` tool. No core monkey patches, extra model, Node runtime, or MCP server required.
 
-**Not an official Vercel or Nous integration. Not full desktop takeover.** This first release supports the signed-in user's **GNOME desktop on Linux x86_64**, using headless accessibility actions only. KDE, macOS, Windows, sandbox/Bot Desktops, pixel-only apps and screenshots are not supported by this adapter, even where upstream supports more.
+**Not an official Vercel or Nous integration. Not full desktop takeover.** This adapter supports the signed-in user's **GNOME desktop on Linux x86_64**, using headless accessibility actions only. KDE, macOS, Windows, sandbox/Bot Desktops, pixel-only apps and screenshots are not supported by this adapter, even where upstream supports more.
 
 ## Why I built this
 
@@ -57,11 +57,13 @@ python3 "$HERMES_PROFILE_HOME/plugins/agent-desktop-gnome/setup_runtime.py" \
   --hermes-home "$HERMES_PROFILE_HOME"
 ```
 
-This fetches only the official upstream **1.2.0** Linux x86_64 release archive. It verifies archive size/SHA256 and both member hashes, rejects links/unexpected archive members, and installs the executable and its matching clipboard helper together under:
+This fetches only the official upstream **1.3.1** Linux x86_64 release archive. It verifies archive size/SHA256 and both member hashes, rejects links/unexpected archive members, and installs the executable and its matching clipboard helper together under:
 
 ```text
-$HERMES_HOME/plugin-data/agent-desktop-gnome/runtime/1.2.0/
+$HERMES_HOME/plugin-data/agent-desktop-gnome/runtime/1.3.1/
 ```
+
+After updating an existing plugin checkout to **0.1.1**, rerun the setup command for the same Hermes profile before opening a new chat. It installs into a new versioned directory and leaves the old runtime intact. This update does not add sandbox support or other desktop capabilities to the adapter.
 
 No npm install scripts or network shell installers execute. No binary is committed in this repository. Existing different runtime files are not overwritten. Setup is idempotent for the exact pin and does not change Hermes configuration. Runtime startup checks both file hashes again.
 
@@ -97,7 +99,7 @@ The bundled [workflow reference](skills/agent-desktop-gnome/SKILL.md) documents 
 ## Security and privacy disclosure
 
 - **Network:** explicit setup downloads the pinned archive from `github.com/vercel-labs/agent-desktop`, following GitHub's HTTPS release-asset redirect. No network acquisition happens in `register()`, `start()` or an action. No self-update or telemetry is implemented by the adapter.
-- **Native executable:** the upstream binary is third-party code running as the user, not an OS sandbox. Checksums prove the reviewed pin; they are not a claim that the binary has no bugs. The archive's GitHub provenance was verified against release workflow `vercel-labs/agent-desktop/.github/workflows/release.yml` and source commit `2b0a7334fc111730454b726e6800aa41cdafc093`. Setup enforces hashes, not attestation verification.
+- **Native executable:** the upstream binary is third-party code running as the user, not an OS sandbox. Checksums prove the reviewed pin; they are not a claim that the binary has no bugs. The archive's GitHub provenance was verified against release workflow `vercel-labs/agent-desktop/.github/workflows/release.yml` on `refs/heads/main` and source commit `b0b7277bea09b770ef9d1fb45aad667bc432cd57` (the commit tagged `v1.3.1`). Setup enforces hashes, not attestation verification.
 - **Desktop reads:** app/window inventory, accessibility tree, field values and current graphical-session environment. These can contain private content. They are returned to the agent according to the user's Hermes/model setup. Password-role and `secure`/`protected` state fields have their content withheld by the adapter and mutations refused. Upstream warns that some GTK4 secret fields are not reliably marked; the adapter cannot identify those universally. Do not target sensitive apps.
 - **Processes:** bounded `systemctl --user show-environment --output=json` and per-command upstream CLI processes, invoked as argv arrays, never shell commands. Text/value input goes through stdin, not process arguments. No long-running server or service is installed.
 - **Environment:** only allowlisted display/session and locale values reach the driver; provider tokens, tracing variables, arbitrary loader settings and unrelated user-manager variables are not copied.
@@ -117,7 +119,7 @@ hermes plugins validate /path/to/hermes-agent-desktop --install-deps
 
 The validator requires the upstream registration-context fix noted above. Review warnings, including the disclosed seat-check imports; do not claim an old validator passed.
 
-Opt-in live testing requires a disposable Hermes profile/home containing this provider and its pinned runtime, with `computer_use.backend` selected. Set `AGENT_DESKTOP_LIVE_TEST=1` when running `tests/test_live_gnome.py` under a dependency-complete Hermes Python environment. It refuses an existing calculator unless the caller explicitly identifies a test instance with `AGENT_DESKTOP_SMOKE_PID`. It launches a test calculator if none exists, exercises the real provider loader and native wrapper capture, verifies semantic click/value readback, closes only the test instance and checks private-state cleanup. No screenshots are taken.
+Opt-in live testing requires a disposable Hermes profile/home containing this provider and its pinned runtime, with `computer_use.backend` selected. Set `AGENT_DESKTOP_LIVE_TEST=1` when running `tests/test_live_gnome.py` under a dependency-complete Hermes Python environment. The test launches its own GTK 4 window using `/usr/bin/python3` (with PyGObject and GTK 4 installed) and scopes every action to that child process and window. It exercises the real provider loader and native wrapper capture, verifies semantic click/value readback, closes the fixture and checks private-state cleanup. No existing app is used and no screenshots are taken.
 
 The tested live loop read back `7` after a semantic click and `42` after setting the display value. Keyboard refusal and stale-index rejection were also exercised. These results do not establish support for other apps or desktops.
 

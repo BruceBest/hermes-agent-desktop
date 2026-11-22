@@ -18,6 +18,10 @@ import urllib.request
 LOCK_PATH = Path(__file__).with_name("runtime-lock.json")
 MAX_DOWNLOAD = 8 * 1024 * 1024
 MAX_MEMBER = 16 * 1024 * 1024
+RELEASE_URL = (
+    "https://github.com/vercel-labs/agent-desktop/releases/download/v1.3.1/"
+    "agent-desktop-v1.3.1-x86_64-unknown-linux-gnu.tar.gz"
+)
 
 
 def checked_members(payload, lock):
@@ -71,8 +75,7 @@ def install(home, lock):
             if path.stat().st_mode & 0o022 or not os.access(path, os.X_OK):
                 raise RuntimeError("Existing runtime permissions are unsafe or not executable")
         return destination
-    expected = "https://github.com/vercel-labs/agent-desktop/releases/download/v1.2.0/agent-desktop-v1.2.0-x86_64-unknown-linux-gnu.tar.gz"
-    if lock["url"] != expected:
+    if lock["url"] != RELEASE_URL:
         raise RuntimeError("Unrecognized runtime source; only the reviewed official release is allowed")
     with urllib.request.urlopen(lock["url"], timeout=60) as response:
         if not response.geturl().startswith("https://"):
