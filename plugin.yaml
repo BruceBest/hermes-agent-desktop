@@ -1,5 +1,5 @@
 name: agent-desktop-gnome
-version: "0.1.0"
+version: "0.1.1"
 description: GNOME-first, AX-only semantic computer-use backend powered by Vercel Labs agent-desktop.
 author: BruceBest
 license: MIT

@@ -79,10 +79,19 @@ class SetupTests(unittest.TestCase):
 
     def test_lock_matches_supported_version_and_official_source(self):
         lock = json.loads(setup.LOCK_PATH.read_text())
-        self.assertEqual(lock["version"], "1.2.0")
-        self.assertTrue(lock["url"].startswith("https://github.com/vercel-labs/agent-desktop/releases/"))
-        self.assertEqual(len(lock["source_commit"]), 40)
+        runtime = importlib.import_module(ROOT.name + ".runtime")
+        version = runtime.VERSION
+        self.assertEqual(lock["version"], version)
+        self.assertEqual(lock["target"], "x86_64-unknown-linux-gnu")
+        self.assertEqual(lock["url"], setup.RELEASE_URL)
+        self.assertEqual(lock["url"], (
+            f"https://github.com/vercel-labs/agent-desktop/releases/download/v{version}/"
+            f"agent-desktop-v{version}-x86_64-unknown-linux-gnu.tar.gz"
+        ))
+        self.assertRegex(lock["source_commit"], r"\A[0-9a-f]{40}\Z")
         self.assertEqual(set(lock["files"]), {"agent-desktop", "agent-desktop-linux-clipboard-owner"})
+        for digest in (lock["sha256"], *lock["files"].values()):
+            self.assertRegex(digest, r"\A[0-9a-f]{64}\Z")
 
 
 if __name__ == "__main__":

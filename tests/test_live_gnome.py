@@ -1,119 +1,162 @@
-"""Explicit opt-in GNOME smoke test. Opens/changes/closes only a test calculator.
+"""Opt-in GNOME smoke test using a child-owned GTK 4 window.
 
 Run with AGENT_DESKTOP_LIVE_TEST=1 in a disposable Hermes home after setup and
-provider selection. Never runs on CI by default. Existing calculators are refused,
-unless AGENT_DESKTOP_SMOKE_PID explicitly identifies a caller-created test instance.
+provider selection. The system /usr/bin/python3 needs PyGObject and GTK 4.
 """
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import time
 import unittest
+import uuid
+
+
+SET_BUTTON = "Set test value to 7"
+CLOSE_BUTTON = "Close Hermes test window"
+DISPLAY_PREFIX = "Test display: "
+
+
+def run_fixture(title):
+    import gi  # pyright: ignore[reportMissingImports]  # The fixture runs with system Python.
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import GLib, Gtk  # pyright: ignore[reportMissingImports]
+
+    Gtk.init()
+    loop = GLib.MainLoop()
+    window = Gtk.Window(title=title, default_width=320, default_height=160)
+    window.connect("close-request", lambda *_: loop.quit() or False)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    entry = Gtk.Entry()
+    entry.set_text("0")
+    # An accessible button has a qualified ref; GTK static labels may not.
+    display = Gtk.Button(label=DISPLAY_PREFIX + entry.get_text())
+    entry.connect("changed", lambda widget: display.set_label(DISPLAY_PREFIX + widget.get_text()))
+    button = Gtk.Button(label=SET_BUTTON)
+    button.connect("clicked", lambda *_: entry.set_text("7"))
+    close = Gtk.Button(label=CLOSE_BUTTON)
+    close.connect("clicked", lambda *_: window.close())
+    for widget in (entry, display, button, close):
+        box.append(widget)
+    window.set_child(box)
+    window.present()
+    loop.run()
 
 
 @unittest.skipUnless(os.environ.get("AGENT_DESKTOP_LIVE_TEST") == "1", "real GNOME test is opt-in")
 class LiveGnomeTests(unittest.TestCase):
-    def test_provider_loader_and_calculator_loop(self):
+    def test_provider_loader_and_gtk_loop(self):
         from plugins.computer_use import get_active_provider
+        from tools.computer_use.tool import handle_computer_use, release_computer_use_session
+
         provider = get_active_provider()
         self.assertEqual(provider.name, "agent-desktop-gnome")
-        b = provider.create_backend(permission_mode="standard")
-        b.start()
-        state_path = Path(b._state.name)
-        pid = None
-        closed = False
-        try:
-            existing = [w for w in b.list_windows() if w.get("app_name") == "gnome-calculator"]
-            adopted = os.environ.get("AGENT_DESKTOP_SMOKE_PID")
-            if existing:
-                self.assertIsNotNone(adopted, "Refusing to touch an existing calculator")
-                matches = [w for w in existing if w.get("pid") == int(adopted)]
-                self.assertEqual(len(matches), 1)
-                pid = matches[0]["pid"]
-            else:
-                launched = b._run("launch", "org.gnome.Calculator", "--no-attach")
-                pid = launched["pid"]
-            windows = [w for w in b.list_windows() if w.get("pid") == pid]
-            self.assertEqual(len(windows), 1)
-            window_id = windows[0]["id"]
+        backend = provider.create_backend(permission_mode="standard")
+        backend.start()
+        self.addCleanup(backend.stop)
+        state = getattr(backend, "_state", None)
+        backend_env = getattr(backend, "_env", None)
+        if state is None or not isinstance(backend_env, dict):
+            self.fail("Provider start did not create private state and a GUI environment")
+        state_path = Path(state.name)
 
-            # Exercise the actual model-facing wrapper for read-only observation, without
-            # patching its backend factory or bypassing its approval logic.
-            from tools.computer_use.tool import handle_computer_use, release_computer_use_session
-            wrapper_session = "agent-desktop-live-smoke"
+        marker = "Hermes GNOME smoke " + uuid.uuid4().hex
+        env = {k: v for k, v in backend_env.items() if k != "AGENT_DESKTOP_HOME"}
+        with subprocess.Popen(["/usr/bin/python3", str(Path(__file__).resolve()), "--fixture", marker],
+                              env=env, stderr=subprocess.PIPE, text=True) as fixture:
+            def fixture_windows(windows):
+                return [w for w in windows if w.get("pid") == fixture.pid and w.get("title") == marker]
+
             try:
-                listing = json.loads(handle_computer_use({"action": "list_windows"},
-                                                         session_id=wrapper_session))
-                target = next(w for w in listing["windows"] if w.get("pid") == pid)
-                self.assertIsInstance(target["id"], int)
-                wrapped = handle_computer_use({"action": "capture", "app": "gnome-calculator",
-                                               "pid": pid, "window_id": target["id"],
-                                               "mode": "ax"}, session_id=wrapper_session)
-                wrapped = json.loads(wrapped)
-                self.assertEqual(wrapped["mode"], "ax", wrapped)
-                self.assertTrue(wrapped["elements"])
-                self.assertNotIn("screenshot_path", wrapped)
-            finally:
-                release_computer_use_session(wrapper_session)
+                deadline = time.monotonic() + 8
+                while True:
+                    if fixture.poll() is not None:
+                        stderr = fixture.stderr.read() if fixture.stderr is not None else ""
+                        self.fail("GTK fixture exited before it was visible: " + stderr)
+                    windows = fixture_windows(backend.list_windows())
+                    if len(windows) == 1:
+                        break
+                    if time.monotonic() > deadline:
+                        self.fail("GTK fixture did not appear as one scoped AT-SPI window")
+                    time.sleep(0.1)
+                window = windows[0]
+                app, window_id = window["app_name"], window["id"]
 
-            def capture():
-                return b.capture(app="gnome-calculator", pid=pid, window_id=window_id)
-
-            def by_native(result, name):
-                return next(e for e in result.elements if e.attributes.get("native_id", {}).get("value") == name)
-
-            def read_display(result):
-                field = by_native(result, "source_view")
-                value = b._run("get", field.element_token, "--property", "text")
-                return str(value.get("value", value.get("text", ""))) if isinstance(value, dict) else str(value)
-
-            snap = capture()
-            clear = by_native(snap, "calc_clear_button")
-            self.assertTrue(b.click(element=clear.index).ok)
-            snap = capture()
-            seven = by_native(snap, "calc_7_button")
-            action = b.click(element=seven.index)
-            self.assertTrue(action.ok, action.message)
-            self.assertEqual(b.click(element=seven.index).code, "stale_ref")
-            snap = capture()
-            self.assertEqual(read_display(snap), "7")
-            field = by_native(snap, "source_view")
-            action = b.set_value("42", element=field.index)
-            self.assertTrue(action.ok, action.message)
-            snap = capture()
-            self.assertEqual(read_display(snap), "42")
-            if "focused" in by_native(snap, "source_view").attributes.get("states", []):
-                action = b.type_text("3")
-                self.assertTrue(action.ok, action.message)
-                snap = capture()
-                self.assertIn("3", read_display(snap))
-            self.assertEqual(b.key("ctrl+a").code, "unsupported_action")
-            snap = capture()
-            close = next(e for e in snap.elements if e.role == "button" and
-                         (e.label.startswith("关闭") or e.label.startswith("Close")))
-            action = b.click(element=close.index)
-            self.assertTrue(action.ok, action.message)
-            deadline = time.monotonic() + 5
-            while any(w.get("pid") == pid for w in b.list_windows()) and time.monotonic() < deadline:
-                time.sleep(0.1)
-            self.assertFalse(any(w.get("pid") == pid for w in b.list_windows()))
-            closed = True
-            print(json.dumps({"real_gnome_smoke": "passed", "click_readback": "7",
-                              "set_value_readback": "42", "calculator_closed": True,
-                              "native_wrapper_capture": "ax, no image"}))
-        finally:
-            if pid and not closed:
-                # Only the exact test process is eligible; no global key/focus/kill fallback.
+                # Exercise real model-facing read-only observation and backend discovery.
+                wrapper_session = "agent-desktop-live-smoke-" + str(fixture.pid)
                 try:
-                    snap = b.capture(app="gnome-calculator", pid=pid)
-                    close = next(e for e in snap.elements if e.role == "button" and
-                                 (e.label.startswith("关闭") or e.label.startswith("Close")))
-                    b.click(element=close.index)
-                except Exception:
-                    print(f"Test calculator PID {pid} may require manual cleanup")
-            b.stop()
+                    listing = json.loads(handle_computer_use({"action": "list_windows"},
+                                                             session_id=wrapper_session))
+                    targets = fixture_windows(listing["windows"])
+                    self.assertEqual(len(targets), 1)
+                    self.assertIsInstance(targets[0]["id"], int)
+                    wrapped = json.loads(handle_computer_use({"action": "capture", "app": app,
+                                                             "pid": fixture.pid, "window_id": targets[0]["id"],
+                                                             "mode": "ax"}, session_id=wrapper_session))
+                    self.assertEqual(wrapped["mode"], "ax", wrapped)
+                    self.assertTrue(wrapped["elements"])
+                    self.assertNotIn("screenshot_path", wrapped)
+                finally:
+                    release_computer_use_session(wrapper_session)
+
+                def capture():
+                    return backend.capture(app=app, pid=fixture.pid, window_id=window_id)
+
+                def named(snapshot, label):
+                    matches = [e for e in snapshot.elements if e.label.split(" | ", 1)[0] == label]
+                    self.assertEqual(len(matches), 1, label)
+                    return matches[0]
+
+                def observe_display(value):
+                    deadline = time.monotonic() + 5
+                    target = DISPLAY_PREFIX + value
+                    while True:
+                        snap = capture()
+                        if any(e.label.split(" | ", 1)[0] == target for e in snap.elements):
+                            return snap
+                        if time.monotonic() >= deadline:
+                            self.fail(f"GTK fixture display did not change to {value!r}")
+                        time.sleep(0.1)
+
+                snap = observe_display("0")
+                button = named(snap, SET_BUTTON)
+                action = backend.click(element=button.index)
+                self.assertTrue(action.ok, action.message)
+                self.assertEqual(backend.click(element=button.index).code, "stale_ref")
+
+                snap = observe_display("7")
+                fields = [e for e in snap.elements if e.role == "textfield" and
+                          "SetValue" in e.attributes.get("available_actions", ())]
+                self.assertEqual(len(fields), 1)
+                action = backend.set_value("42", element=fields[0].index)
+                self.assertTrue(action.ok, action.message)
+                snap = observe_display("42")
+
+                self.assertEqual(backend.key("ctrl+a").code, "unsupported_action")
+                action = backend.click(element=named(snap, CLOSE_BUTTON).index)
+                self.assertTrue(action.ok, action.message)
+                self.assertEqual(fixture.wait(timeout=5), 0)
+                self.assertFalse(fixture_windows(backend.list_windows()))
+            finally:
+                # Only this test's own child process is eligible for fallback cleanup.
+                if fixture.poll() is None:
+                    fixture.terminate()
+                    try:
+                        fixture.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        fixture.kill()
+                        fixture.wait(timeout=5)
+
+        backend.stop()
         self.assertFalse(state_path.exists(), "Private snapshots must be removed on stop")
+        print(json.dumps({"real_gnome_smoke": "passed", "click_readback": "7",
+                          "set_value_readback": "42", "fixture_closed": True,
+                          "native_wrapper_capture": "ax, no image"}))
 
 
 if __name__ == "__main__":
-    unittest.main()
+    if sys.argv[1:2] == ["--fixture"] and len(sys.argv) == 3:
+        run_fixture(sys.argv[2])
+    else:
+        unittest.main()

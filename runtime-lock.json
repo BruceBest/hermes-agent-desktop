@@ -1,12 +1,12 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.1",
   "target": "x86_64-unknown-linux-gnu",
-  "url": "https://github.com/vercel-labs/agent-desktop/releases/download/v1.2.0/agent-desktop-v1.2.0-x86_64-unknown-linux-gnu.tar.gz",
-  "sha256": "591ae7f4a38479dc045df97e27447c0c8b530441730ab6b990e27c813162af44",
-  "size": 3458001,
-  "source_commit": "2b0a7334fc111730454b726e6800aa41cdafc093",
+  "url": "https://github.com/vercel-labs/agent-desktop/releases/download/v1.3.1/agent-desktop-v1.3.1-x86_64-unknown-linux-gnu.tar.gz",
+  "sha256": "ca77b6b75034eeb12e537dd8c0a4f2a3424119253f38b7e6bd79ba0d2fef1264",
+  "size": 3537152,
+  "source_commit": "b0b7277bea09b770ef9d1fb45aad667bc432cd57",
   "files": {
-    "agent-desktop": "da52a1eb2152cdc21b756ab20e6208d242da8062c73cd20bc8a8ae2a0384392c",
-    "agent-desktop-linux-clipboard-owner": "3e96f92b805c0d1f9de309935d62f4189b8e11e1385ad022bb878487bb3942ec"
+    "agent-desktop": "21cd3a0c28d76a6f5999970b2bd1c11fd843b8b95147832d33e60a1128240452",
+    "agent-desktop-linux-clipboard-owner": "e55214da7bc28559fb383331dfa4ad6c7e33178c23aea67597a07d883b45ee60"
   }
 }

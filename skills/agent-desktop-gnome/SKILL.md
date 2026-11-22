@@ -1,7 +1,7 @@
 ---
 name: agent-desktop-gnome
 description: Use when driving GNOME with the semantic Hermes backend.
-version: 0.1.0
+version: 0.1.1
 license: MIT
 ---
 
